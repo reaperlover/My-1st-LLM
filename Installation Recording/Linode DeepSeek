@@ -1,0 +1,50 @@
+sudo apt update && sudo apt upgrade -y
+#更新系统包
+
+sudo apt install -y curl git python3-pip python3-venv build-essential
+#安装基本依赖
+
+curl -fsSL https://ollama.com/install.sh | sh
+#安装Ollama
+
+systemctl start ollama
+#启动Ollama服务
+
+ollama pull deepseek-r1:7b
+#安装deepseek-r1-7b模型，支持的模型信息可到https://ollama.com/library/deepseek-r1上面查看。
+
+python3 -m venv ~/llm-env
+source ~/llm-env/bin/activate
+#创建python虚拟环境
+
+pip install langchain langchain-community sentence-transformers faiss-cpu pypdf
+#安装必要的python包，包括langchain相关组件
+
+####以下内容为测试本地deepseek是否正常工作，会输出答案####
+cat << EOF > test_model.py
+from langchain_community.llms import Ollama
+
+llm = Ollama(model="deepseek-r1:7b-q4")
+
+response = llm.invoke("请介绍一下CDN的基本原理")
+print(response)
+EOF
+
+   18  python test_model.py
+   19  clear
+   20  cat << EOF > test_model.py
+from langchain_community.llms import Ollama
+
+llm = Ollama(model="deepseek-r1:7b")
+
+response = llm.invoke("请介绍一下CDN的基本原理")
+print(response)
+EOF
+##################################################
+
+pip install pypdf python-docx unstructured
+#安装文档加载和处理工具
+
+pip install langchain-community ollama
+#安装langchain-ollama组件
+
