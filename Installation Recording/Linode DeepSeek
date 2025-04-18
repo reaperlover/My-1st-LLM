@@ -10,41 +10,26 @@ curl -fsSL https://ollama.com/install.sh | sh
 systemctl start ollama
 #启动Ollama服务
 
-ollama pull deepseek-r1:7b
+ollama pull deepseek-r1:7b-qwen-distill-q4_K_M
 #安装deepseek-r1-7b模型，支持的模型信息可到https://ollama.com/library/deepseek-r1上面查看。
 
 python3 -m venv ~/llm-env
 source ~/llm-env/bin/activate
 #创建python虚拟环境
 
-pip install langchain langchain-community sentence-transformers faiss-cpu pypdf
+pip install langchain sentence-transformers faiss-cpu pypdf
 #安装必要的python包，包括langchain相关组件
-
-####以下内容为测试本地deepseek是否正常工作，会输出答案####
-cat << EOF > test_model.py
-from langchain_community.llms import Ollama
-
-llm = Ollama(model="deepseek-r1:7b-q4")
-
-response = llm.invoke("请介绍一下CDN的基本原理")
-print(response)
-EOF
-
-   18  python test_model.py
-   19  clear
-   20  cat << EOF > test_model.py
-from langchain_community.llms import Ollama
-
-llm = Ollama(model="deepseek-r1:7b")
-
-response = llm.invoke("请介绍一下CDN的基本原理")
-print(response)
-EOF
-##################################################
 
 pip install pypdf python-docx unstructured
 #安装文档加载和处理工具
 
-pip install langchain-community ollama
+pip install langchain-ollama
 #安装langchain-ollama组件
 
+#################使用一下内容测试LLM是否正常工作###################
+curl http://localhost:11434/api/generate -d '{
+  "model": "deepseek-r1:7b-qwen-distill-q4_K_M",
+  "prompt": "日本的首都是哪里？",
+  "stream": false
+}'
+##############################################################
