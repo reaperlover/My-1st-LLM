@@ -1,3 +1,5 @@
+#系统为unbuntu 24.04 LTS
+
 sudo apt update && sudo apt upgrade -y
 #更新系统包
 
