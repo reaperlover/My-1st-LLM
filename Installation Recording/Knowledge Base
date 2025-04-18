@@ -1,0 +1,22 @@
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl wget unzip build-essential python3-pip python3-venv
+#更新系统并安装基础工具
+
+sudo adduser zjxadmin
+sudo usermod -aG sudo zjxadmin
+#创建专用用户
+
+su - zjxadmin
+#切换用户
+
+python -m venv knowledge-env
+source knowledge-env/bin/activate
+# 创建专用目录
+
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+#配置Swap空间（防止OOM)
+
