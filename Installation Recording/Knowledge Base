@@ -24,5 +24,38 @@ source knowledge-env/bin/activate
 # 创建专用目录
 
 pip install --upgrade pip
-pip install langchain-core==0.1.0 faiss-cpu==1.8.0 sentence-transformers==3.0.0 pypdf==4.2.0 fastapi==0.111.0
+pip install langchain-core==0.3.54 faiss-cpu==1.10.0 sentence-transformers==4.1.0 pypdf==5.4.0 fastapi
 #安装最小化依赖（内存优化版）
+
+mkdir -p ~/knowledge-env/data/manuals
+#通过SFTP/scp将PDF/Word等手册上传到此目录，作为知识库
+
+##########创建Python脚本，执行后可自动构建知识库##########
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+import os
+
+# 1. 加载文档
+loader = DirectoryLoader(
+    os.path.expanduser("~/knowledge-base/manuals"),
+    glob="**/*.pdf",
+    show_progress=True
+)
+docs = loader.load()
+
+# 2. 分割文本
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200
+)
+splits = splitter.split_documents(docs)
+
+# 3. 生成向量库
+embeddings = HuggingFaceEmbeddings(model_name="shibing624/text2vec-base-chinese")
+vectorstore = FAISS.from_documents(splits, embeddings)
+vectorstore.save_local("knowledge_db")
+print("知识库构建完成！保存到 knowledge_db/ 目录")
+######################################################
+
