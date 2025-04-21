@@ -1,7 +1,7 @@
 #系统为unbuntu 24.04 LTS
 
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl wget unzip build-essential python3-pip python3-venv
+sudo apt install -y git curl unzip python3-pip python3-venv
 #更新系统并安装基础工具
 
 sudo adduser zjxadmin
@@ -11,10 +11,6 @@ sudo usermod -aG sudo zjxadmin
 su - zjxadmin
 #切换用户
 
-python3 -m venv knowledge-env
-source knowledge-env/bin/activate
-# 创建专用目录
-
 sudo fallocate -l 4G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
@@ -22,6 +18,11 @@ sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 #配置Swap空间（防止OOM), swap空间即在内存可能不够用时，将硬盘空间与内存空间做交换，虽然磁盘读写速度比内存慢1000倍，但是会防止内存过载，导致进程崩溃。因为我的当前设备的内存为8GB，估算各个服务峰值可能消耗12GB内存。可使用free -h查看swap空间使用
 
+mkdir ~/knowledge-env && cd ~/knowledge-env
+python3 -m venv knowledge-env
+source knowledge-env/bin/activate
+# 创建专用目录
 
-
-
+pip install --upgrade pip
+pip install langchain-core==0.1.0 faiss-cpu==1.8.0 sentence-transformers==3.0.0 pypdf==4.2.0 fastapi==0.111.0
+#安装最小化依赖（内存优化版）
