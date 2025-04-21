@@ -1,61 +1,100 @@
-#系统为unbuntu 24.04 LTS
-
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl unzip python3-pip python3-venv
+sudo apt install python3 python3-pip git libgl1 -y
 #更新系统并安装基础工具
 
-sudo adduser zjxadmin
-sudo usermod -aG sudo zjxadmin
-#创建专用用户
-
-su - zjxadmin
-#切换用户
-
-sudo fallocate -l 4G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-#配置Swap空间（防止OOM), swap空间即在内存可能不够用时，将硬盘空间与内存空间做交换，虽然磁盘读写速度比内存慢1000倍，但是会防止内存过载，导致进程崩溃。因为我的当前设备的内存为8GB，估算各个服务峰值可能消耗12GB内存。可使用free -h查看swap空间使用
-
-mkdir ~/knowledge-env && cd ~/knowledge-env
-python3 -m venv knowledge-env
-source knowledge-env/bin/activate
-# 创建专用目录
-
+python3 -m venv rag-env
+source rag-env/bin/activate
 pip install --upgrade pip
-pip install langchain-core==0.3.54 faiss-cpu==1.10.0 sentence-transformers==4.1.0 pypdf==5.4.0 fastapi
-#安装最小化依赖（内存优化版）
+#创建 Python 环境
 
-mkdir -p ~/knowledge-env/data/manuals
-#通过SFTP/scp将PDF/Word等手册上传到此目录，作为知识库
+pip install fastapi uvicorn python-multipart
+pip install langchain sentence-transformers chromadb
+pip install unstructured[all] pdfminer.six python-docx "unstructured[pdf]"
+#安装核心依赖
+#fastapi/uvicorn：用于部署接口服务，供 A机 远程访问
+#langchain：文档处理框架
+#sentence-transformers：用于中英文兼容的嵌入模型（如multi-qa-MiniLM）
+#chromadb：作为本地轻量级向量数据库
+#unstructured、pdfminer.six、python-docx：用于解析PDF、Word文档
 
-##########创建Python脚本，执行后可自动构建知识库##########
-from langchain_community.document_loaders import DirectoryLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+mkdir rag-server
+cd rag-server
+mkdir docs
+#初始化项目目录结构
+#docs/：放置你的 PDF、Word 等知识库文档
+
+vim build_vector_db.py
+#######生成向量数据库#########
 import os
+from glob import glob
+from langchain_community.document_loaders import UnstructuredFileLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import SentenceTransformerEmbeddings
 
-# 1. 加载文档
-loader = DirectoryLoader(
-    os.path.expanduser("~/knowledge-base/manuals"),
-    glob="**/*.pdf",
-    show_progress=True
-)
-docs = loader.load()
+# 确保目录存在
+os.makedirs("docs", exist_ok=True)
+os.makedirs("chroma_db", exist_ok=True)
 
-# 2. 分割文本
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200
-)
-splits = splitter.split_documents(docs)
+# 使用中英混合嵌入模型
+embedding_model = SentenceTransformerEmbeddings(model_name="shibing624/text2vec-base-multilingual")
 
-# 3. 生成向量库
-embeddings = HuggingFaceEmbeddings(model_name="shibing624/text2vec-base-chinese")
-vectorstore = FAISS.from_documents(splits, embeddings)
-vectorstore.save_local("knowledge_db")
-print("知识库构建完成！保存到 knowledge_db/ 目录")
-######################################################
+# 加载或初始化向量数据库
+vector_db = Chroma(persist_directory="chroma_db", embedding_function=embedding_model)
 
+# 加载所有文档
+files = glob("docs/*")
+if not files:
+    print("❌ No documents found in /docs folder.")
+    exit(1)
+
+for file_path in files:
+    try:
+        print(f"📄 Processing: {file_path}")
+        loader = UnstructuredFileLoader(file_path)
+        docs = loader.load()
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        chunks = splitter.split_documents(docs)
+
+        vector_db.add_documents(chunks)
+    except Exception as e:
+        print(f"⚠️ Error processing {file_path}: {str(e)}")
+
+print("✅ Vector DB built and saved to chroma_db/")
+################
+python3 build_vector_db.py
+#每次在docs目录下上传或删除了新的文档后，可跑这个命令重新构建向量数据库
+
+vim main.py
+#######运行 FastAPI 服务#########
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import SentenceTransformerEmbeddings
+
+class QueryRequest(BaseModel):
+    q: str
+
+app = FastAPI()
+
+# 加载向量库
+embedding_model = SentenceTransformerEmbeddings(model_name="shibing624/text2vec-base-multilingual")
+vector_db = Chroma(persist_directory="chroma_db", embedding_function=embedding_model)
+
+@app.post("/query")
+async def query_knowledge(request: QueryRequest):
+    # 仅返回检索结果，不调用LLM
+    docs = vector_db.similarity_search(request.q, k=3)
+    return {
+        "query": request.q,
+        "results": [
+            {"content": doc.page_content, "source": doc.metadata.get("source", "")}
+            for doc in docs
+        ]
+    }
+################
+
+uvicorn main:app --host 0.0.0.0 --port 8000
+#启动服务
